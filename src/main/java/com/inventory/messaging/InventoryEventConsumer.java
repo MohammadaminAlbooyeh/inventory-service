@@ -1,5 +1,6 @@
 package com.inventory.messaging;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inventory.model.Reservation;
 import com.inventory.service.ReservationService;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class InventoryEventConsumer {
 
     public static final String ORDER_CREATED_TOPIC = "order.created";
+    public static final String RESERVATION_CANCEL_TOPIC = "inventory.reservation_cancel";
 
     private final ReservationService reservationService;
     private final InventoryEventProducer eventProducer;
@@ -53,6 +56,21 @@ public class InventoryEventConsumer {
                     + failedProducts.stream().collect(Collectors.joining(", "));
             eventProducer.publishReservationFailed(event.getOrderId(), reason);
             reservations.forEach(r -> reservationService.cancelReservation(r.getReservationCode()));
+        }
+    }
+
+    @KafkaListener(topics = RESERVATION_CANCEL_TOPIC, groupId = "inventory-service")
+    public void onReservationCancel(String message) {
+        try {
+            Map<String, String> payload = objectMapper.readValue(message,
+                    new TypeReference<Map<String, String>>() {});
+            String orderId = payload.get("orderId");
+            if (orderId != null) {
+                reservationService.cancelByOrder(orderId);
+                log.info("Cancelled reservations for order {} (saga compensation)", orderId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse {} message", RESERVATION_CANCEL_TOPIC, e);
         }
     }
 

@@ -79,6 +79,19 @@ public class ReservationService {
         return reservationRepository.findByOrderId(orderId);
     }
 
+    @Transactional
+    public void cancelByOrder(String orderId) {
+        List<Reservation> reservations = reservationRepository.findByOrderId(orderId);
+        for (Reservation reservation : reservations) {
+            if (reservation.getStatus() == ReservationStatus.PENDING
+                    || reservation.getStatus() == ReservationStatus.CONFIRMED) {
+                stockService.releaseStock(reservation.getProductId(), reservation.getQuantity());
+                reservation.setStatus(ReservationStatus.CANCELLED);
+            }
+        }
+        log.info("Cancelled {} reservations for order {}", reservations.size(), orderId);
+    }
+
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void expireStaleReservations() {
