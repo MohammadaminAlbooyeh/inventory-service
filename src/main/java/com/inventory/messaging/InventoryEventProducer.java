@@ -2,6 +2,7 @@ package com.inventory.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inventory.model.Reservation;
+import com.platform.topics.PlatformTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -14,9 +15,6 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class InventoryEventProducer {
-
-    public static final String RESERVED_TOPIC = "inventory.reserved";
-    public static final String RESERVATION_FAILED_TOPIC = "inventory.reservation_failed";
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
@@ -31,7 +29,7 @@ public class InventoryEventProducer {
                                 "quantity", r.getQuantity()))
                         .toList()
         );
-        send(RESERVED_TOPIC, orderId, payload);
+        send(PlatformTopics.INVENTORY_RESERVED, orderId, payload);
     }
 
     public void publishReservationFailed(String orderId, String reason) {
@@ -39,7 +37,7 @@ public class InventoryEventProducer {
                 "orderId", orderId,
                 "reason", reason
         );
-        send(RESERVATION_FAILED_TOPIC, orderId, payload);
+        send(PlatformTopics.INVENTORY_RESERVATION_FAILED, orderId, payload);
     }
 
     private void send(String topic, String key, Map<String, Object> payload) {
