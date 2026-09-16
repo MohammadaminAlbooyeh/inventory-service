@@ -16,3 +16,9 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:29092
+
+security:
+  api-key:
+
+ratelimit:
+  enabled: false

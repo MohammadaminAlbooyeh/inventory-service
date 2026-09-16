@@ -78,6 +78,32 @@ class ReservationLockServiceTest {
     }
 
     @Test
+    void acquireRetriesThenSucceeds() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(java.time.Duration.class)))
+                .thenReturn(false, false, true);
+
+        boolean acquired = lockService.acquire("product:p1");
+
+        assertThat(acquired).isTrue();
+        verify(valueOperations, times(3))
+                .setIfAbsent(anyString(), anyString(), any(java.time.Duration.class));
+    }
+
+    @Test
+    void acquireGivesUpAfterMaxAttempts() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(java.time.Duration.class)))
+                .thenReturn(false);
+
+        boolean acquired = lockService.acquire("product:p1");
+
+        assertThat(acquired).isFalse();
+        verify(valueOperations, times(5))
+                .setIfAbsent(anyString(), anyString(), any(java.time.Duration.class));
+    }
+
+    @Test
     void unlockDoesNothingWhenNotLocked() {
         lockService.unlock("product:p1");
 

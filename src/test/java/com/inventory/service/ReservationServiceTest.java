@@ -40,7 +40,7 @@ class ReservationServiceTest {
 
     @Test
     void createReservationSucceedsWhenStockAvailable() {
-        when(lockService.tryLock("product:p1")).thenReturn(true);
+        when(lockService.acquire("product:p1")).thenReturn(true);
         when(stockService.reserveStock("p1", 2)).thenReturn(true);
         Reservation reservation = Reservation.builder()
                 .id(1L).reservationCode("code-1").orderId("ord-1").productId("p1").quantity(2)
@@ -60,7 +60,7 @@ class ReservationServiceTest {
 
     @Test
     void createReservationFailsWhenLockNotAcquired() {
-        when(lockService.tryLock("product:p1")).thenReturn(false);
+        when(lockService.acquire("product:p1")).thenReturn(false);
 
         Optional<Reservation> result = reservationService.createReservation("ord-1", "p1", 2);
 
@@ -70,7 +70,7 @@ class ReservationServiceTest {
 
     @Test
     void createReservationFailsWhenInsufficientStock() {
-        when(lockService.tryLock("product:p1")).thenReturn(true);
+        when(lockService.acquire("product:p1")).thenReturn(true);
         when(stockService.reserveStock("p1", 999)).thenReturn(false);
 
         Optional<Reservation> result = reservationService.createReservation("ord-1", "p1", 999);

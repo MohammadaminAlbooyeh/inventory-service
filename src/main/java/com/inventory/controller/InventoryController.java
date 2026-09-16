@@ -5,11 +5,16 @@ import com.inventory.model.StockItem;
 import com.inventory.model.Warehouse;
 import com.inventory.service.ReservationService;
 import com.inventory.service.StockService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,14 +24,18 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/inventory")
 @RequiredArgsConstructor
+@Validated
 public class InventoryController {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final StockService stockService;
     private final ReservationService reservationService;
 
     @GetMapping("/items")
-    public List<StockItem> listItems() {
-        return stockService.listItems();
+    public PageResponse<StockItem> listItems(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                             @RequestParam(defaultValue = "20") @Min(1) int size) {
+        return PageResponse.of(stockService.listItems(pageRequest(page, size, "productId")));
     }
 
     @GetMapping("/items/{productId}")
@@ -35,7 +44,7 @@ public class InventoryController {
     }
 
     @PostMapping("/items")
-    public ResponseEntity<StockItem> upsertItem(@RequestBody UpsertStockRequest request) {
+    public ResponseEntity<StockItem> upsertItem(@Valid @RequestBody UpsertStockRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(stockService.upsertStock(request.productId, request.warehouseId, request.quantity));
     }
@@ -49,18 +58,23 @@ public class InventoryController {
     }
 
     @GetMapping("/warehouses")
-    public List<Warehouse> listWarehouses() {
-        return stockService.listWarehouses();
+    public PageResponse<Warehouse> listWarehouses(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                                  @RequestParam(defaultValue = "20") @Min(1) int size) {
+        return PageResponse.of(stockService.listWarehouses(pageRequest(page, size, "name")));
+    }
+
+    private static PageRequest pageRequest(int page, int size, String sortBy) {
+        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by(sortBy));
     }
 
     @PostMapping("/warehouses")
-    public ResponseEntity<Warehouse> createWarehouse(@RequestBody CreateWarehouseRequest request) {
+    public ResponseEntity<Warehouse> createWarehouse(@Valid @RequestBody CreateWarehouseRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(stockService.createWarehouse(request.name, request.location));
     }
 
     @PostMapping("/reservations")
-    public ResponseEntity<?> reserve(@RequestBody ReserveRequest request) {
+    public ResponseEntity<?> reserve(@Valid @RequestBody ReserveRequest request) {
         Optional<Reservation> reservation = reservationService
                 .createReservation(request.orderId, request.productId, request.quantity);
         return reservation
@@ -86,7 +100,7 @@ public class InventoryController {
     }
 
     public record UpsertStockRequest(@NotBlank String productId,
-                                     @NotBlank Long warehouseId,
+                                     @NotNull Long warehouseId,
                                      @Min(0) int quantity) {
     }
 

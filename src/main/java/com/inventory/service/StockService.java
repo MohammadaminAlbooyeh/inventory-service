@@ -5,10 +5,10 @@ import com.inventory.model.Warehouse;
 import com.inventory.repository.StockItemRepository;
 import com.inventory.repository.WarehouseRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -18,8 +18,8 @@ public class StockService {
     private final WarehouseRepository warehouseRepository;
 
     @Transactional(readOnly = true)
-    public List<StockItem> listItems() {
-        return stockItemRepository.findAll();
+    public Page<StockItem> listItems(Pageable pageable) {
+        return stockItemRepository.findAll(pageable);
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +88,7 @@ public class StockService {
     }
 
     @Transactional(readOnly = true)
-    public List<Warehouse> listWarehouses() {
-        return warehouseRepository.findAll();
+    public Page<Warehouse> listWarehouses(Pageable pageable) {
+        return warehouseRepository.findAll(pageable);
     }
 }

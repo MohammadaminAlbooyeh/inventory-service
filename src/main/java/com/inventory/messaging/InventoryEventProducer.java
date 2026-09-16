@@ -1,23 +1,25 @@
 package com.inventory.messaging;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inventory.model.Reservation;
+import com.inventory.outbox.OutboxService;
 import com.platform.topics.PlatformTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Writes outbound events to the transactional outbox. Must be called from within the
+ * business transaction; a relay performs the actual Kafka publish.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class InventoryEventProducer {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+    private final OutboxService outboxService;
 
     public void publishReserved(String orderId, List<Reservation> reservations) {
         Map<String, Object> payload = Map.of(
@@ -29,23 +31,13 @@ public class InventoryEventProducer {
                                 "quantity", r.getQuantity()))
                         .toList()
         );
-        send(PlatformTopics.INVENTORY_RESERVED, orderId, payload);
+        outboxService.append(PlatformTopics.INVENTORY_RESERVED, orderId, payload);
+        log.info("Queued {} for order {}", PlatformTopics.INVENTORY_RESERVED, orderId);
     }
 
     public void publishReservationFailed(String orderId, String reason) {
-        Map<String, Object> payload = Map.of(
-                "orderId", orderId,
-                "reason", reason
-        );
-        send(PlatformTopics.INVENTORY_RESERVATION_FAILED, orderId, payload);
-    }
-
-    private void send(String topic, String key, Map<String, Object> payload) {
-        try {
-            kafkaTemplate.send(topic, key, objectMapper.writeValueAsString(payload));
-            log.info("Published {} for key {}", topic, key);
-        } catch (Exception e) {
-            log.error("Failed to publish {} for key {}", topic, key, e);
-        }
+        Map<String, Object> payload = Map.of("orderId", orderId, "reason", reason);
+        outboxService.append(PlatformTopics.INVENTORY_RESERVATION_FAILED, orderId, payload);
+        log.info("Queued {} for order {}", PlatformTopics.INVENTORY_RESERVATION_FAILED, orderId);
     }
 }

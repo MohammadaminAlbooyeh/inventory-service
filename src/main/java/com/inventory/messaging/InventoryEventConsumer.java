@@ -2,7 +2,6 @@ package com.inventory.messaging;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.inventory.model.Reservation;
 import com.inventory.service.ReservationService;
 import com.platform.events.OrderCreatedEvent;
 import com.platform.topics.PlatformTopics;
@@ -11,11 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -23,7 +18,7 @@ import java.util.stream.Collectors;
 public class InventoryEventConsumer {
 
     private final ReservationService reservationService;
-    private final InventoryEventProducer eventProducer;
+    private final OrderReservationHandler orderReservationHandler;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = PlatformTopics.ORDER_CREATED, groupId = "inventory-service")
@@ -34,28 +29,7 @@ public class InventoryEventConsumer {
         }
         log.info("Received {} for order {} with {} items",
                 PlatformTopics.ORDER_CREATED, event.getOrderId(), event.getItems().size());
-
-        List<Reservation> reservations = new ArrayList<>();
-        List<String> failedProducts = new ArrayList<>();
-
-        for (OrderCreatedEvent.Item item : event.getItems()) {
-            Optional<Reservation> reservation = reservationService
-                    .createReservation(event.getOrderId(), item.getProductId(), item.getQuantity());
-            if (reservation.isPresent()) {
-                reservations.add(reservation.get());
-            } else {
-                failedProducts.add(item.getProductId());
-            }
-        }
-
-        if (failedProducts.isEmpty()) {
-            eventProducer.publishReserved(event.getOrderId(), reservations);
-        } else {
-            String reason = "Insufficient stock for products: "
-                    + failedProducts.stream().collect(Collectors.joining(", "));
-            eventProducer.publishReservationFailed(event.getOrderId(), reason);
-            reservations.forEach(r -> reservationService.cancelReservation(r.getReservationCode()));
-        }
+        orderReservationHandler.reserveForOrder(event);
     }
 
     @KafkaListener(topics = PlatformTopics.INVENTORY_RESERVATION_CANCEL, groupId = "inventory-service")

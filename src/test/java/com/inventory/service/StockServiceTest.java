@@ -9,6 +9,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,12 +37,13 @@ class StockServiceTest {
     void listItemsReturnsAllStockItems() {
         Warehouse warehouse = Warehouse.builder().id(1L).name("Main").location("Tehran").build();
         StockItem item = StockItem.builder().id(1L).productId("p1").warehouse(warehouse).quantity(10).reservedQuantity(2).build();
-        when(stockItemRepository.findAll()).thenReturn(List.of(item));
+        PageRequest pageRequest = PageRequest.of(0, 20);
+        when(stockItemRepository.findAll(pageRequest)).thenReturn(new PageImpl<>(List.of(item)));
 
-        List<StockItem> items = stockService.listItems();
+        Page<StockItem> items = stockService.listItems(pageRequest);
 
-        assertThat(items).hasSize(1);
-        assertThat(items.get(0).getProductId()).isEqualTo("p1");
+        assertThat(items.getContent()).hasSize(1);
+        assertThat(items.getContent().get(0).getProductId()).isEqualTo("p1");
     }
 
     @Test
@@ -190,11 +194,12 @@ class StockServiceTest {
     @Test
     void listWarehousesReturnsAllWarehouses() {
         Warehouse warehouse = Warehouse.builder().id(1L).name("Main").location("Tehran").build();
-        when(warehouseRepository.findAll()).thenReturn(List.of(warehouse));
+        PageRequest pageRequest = PageRequest.of(0, 20);
+        when(warehouseRepository.findAll(pageRequest)).thenReturn(new PageImpl<>(List.of(warehouse)));
 
-        List<Warehouse> warehouses = stockService.listWarehouses();
+        Page<Warehouse> warehouses = stockService.listWarehouses(pageRequest);
 
-        assertThat(warehouses).hasSize(1);
-        assertThat(warehouses.get(0).getName()).isEqualTo("Main");
+        assertThat(warehouses.getContent()).hasSize(1);
+        assertThat(warehouses.getContent().get(0).getName()).isEqualTo("Main");
     }
 }

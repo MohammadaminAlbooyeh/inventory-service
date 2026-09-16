@@ -1,0 +1,59 @@
+groups:
+  - name: inventory-service
+    rules:
+      - alert: InventoryServiceDown
+        expr: up{job="inventory-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "inventory-service target is down"
+          description: "No metrics scraped from {{ $labels.instance }} for 2m."
+
+      - alert: InventoryReservationFailureRateHigh
+        expr: |
+          sum(rate(inventory_reservations_total{outcome="insufficient_stock"}[5m]))
+          /
+          clamp_min(sum(rate(inventory_reservations_total[5m])), 0.001) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 25% of reservations fail on insufficient stock"
+          description: "Sustained oversell pressure - check restock pipeline and demand."
+
+      - alert: InventoryReservationExpirySpike
+        expr: sum(rate(inventory_reservations_total{outcome="expired"}[10m])) * 600 > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reservation expiries spiking"
+          description: "More than 20 reservations expired in the last 10m window - orders may be stalling before confirmation."
+
+      - alert: InventoryLockContention
+        expr: sum(rate(inventory_reservations_total{outcome="lock_contention"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis reservation lock contention"
+          description: "Reservations are giving up on the product lock - investigate hot products or Redis latency."
+
+      - alert: InventoryOutboxBacklog
+        expr: inventory_outbox_pending > 50
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outbox relay is falling behind"
+          description: "{{ $value }} events pending publish for 5m - Kafka may be unavailable or the relay stopped."
+
+      - alert: InventoryDeadLetters
+        expr: increase(inventory_kafka_dlt_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Messages routed to a dead-letter topic"
+          description: "{{ $value }} message(s) on {{ $labels.topic }} in 15m - inspect and reprocess."

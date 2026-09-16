@@ -8,8 +8,12 @@ import com.inventory.service.StockService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,6 +36,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(InventoryController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class InventoryControllerTest {
 
     @Autowired
@@ -43,6 +48,10 @@ class InventoryControllerTest {
     @MockBean
     private ReservationService reservationService;
 
+    // Present only so the RateLimitFilter bean in the web slice can be constructed.
+    @MockBean
+    private StringRedisTemplate stringRedisTemplate;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -50,12 +59,12 @@ class InventoryControllerTest {
     void listItemsReturnsAllStockItems() throws Exception {
         Warehouse warehouse = Warehouse.builder().id(1L).name("Main").location("Tehran").build();
         StockItem item = StockItem.builder().id(1L).productId("p1").warehouse(warehouse).quantity(10).reservedQuantity(2).build();
-        when(stockService.listItems()).thenReturn(List.of(item));
+        when(stockService.listItems(any())).thenReturn(new PageImpl<>(List.of(item)));
 
         mockMvc.perform(get("/api/inventory/items"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].productId").value("p1"))
-                .andExpect(jsonPath("$[0].quantity").value(10));
+                .andExpect(jsonPath("$.content[0].productId").value("p1"))
+                .andExpect(jsonPath("$.content[0].quantity").value(10));
     }
 
     @Test
@@ -111,11 +120,11 @@ class InventoryControllerTest {
     @Test
     void listWarehousesReturnsAllWarehouses() throws Exception {
         Warehouse warehouse = Warehouse.builder().id(1L).name("Main").location("Tehran").build();
-        when(stockService.listWarehouses()).thenReturn(List.of(warehouse));
+        when(stockService.listWarehouses(any())).thenReturn(new PageImpl<>(List.of(warehouse)));
 
         mockMvc.perform(get("/api/inventory/warehouses"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Main"));
+                .andExpect(jsonPath("$.content[0].name").value("Main"));
     }
 
     @Test

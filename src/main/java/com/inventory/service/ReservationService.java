@@ -4,8 +4,11 @@ import com.inventory.lock.ReservationLockService;
 import com.inventory.model.Reservation;
 import com.inventory.model.enums.ReservationStatus;
 import com.inventory.repository.ReservationRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,20 +25,33 @@ public class ReservationService {
 
     private static final long RESERVATION_TTL_MINUTES = 10;
 
+    private static final String METRIC = "inventory.reservations";
+
     private final ReservationRepository reservationRepository;
     private final StockService stockService;
     private final ReservationLockService lockService;
+    /** Null in plain unit tests that build the service without a registry. */
+    @Nullable
+    private final MeterRegistry meterRegistry;
+
+    private void countOutcome(String outcome) {
+        if (meterRegistry != null) {
+            Counter.builder(METRIC).tag("outcome", outcome).register(meterRegistry).increment();
+        }
+    }
 
     @Transactional
     public Optional<Reservation> createReservation(String orderId, String productId, int quantity) {
         String lockKey = "product:" + productId;
-        if (!lockService.tryLock(lockKey)) {
+        if (!lockService.acquire(lockKey)) {
             log.warn("Could not acquire lock for product {} (order {})", productId, orderId);
+            countOutcome("lock_contention");
             return Optional.empty();
         }
         try {
             if (!stockService.reserveStock(productId, quantity)) {
                 log.warn("Not enough stock for product {} (order {})", productId, orderId);
+                countOutcome("insufficient_stock");
                 return Optional.empty();
             }
             Reservation reservation = Reservation.builder()
@@ -46,7 +62,9 @@ public class ReservationService {
                     .status(ReservationStatus.PENDING)
                     .expiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES))
                     .build();
-            return Optional.of(reservationRepository.save(reservation));
+            Reservation saved = reservationRepository.save(reservation);
+            countOutcome("created");
+            return Optional.of(saved);
         } finally {
             lockService.unlock(lockKey);
         }
@@ -100,6 +118,7 @@ public class ReservationService {
         for (Reservation reservation : stale) {
             stockService.releaseStock(reservation.getProductId(), reservation.getQuantity());
             reservation.setStatus(ReservationStatus.EXPIRED);
+            countOutcome("expired");
             log.info("Expired reservation {}", reservation.getReservationCode());
         }
     }

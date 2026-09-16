@@ -32,3 +32,35 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    redis:
+      enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        "[http.server.requests]": true
+
+# Static shared-secret for the HTTP API (sits behind the gateway).
+# Leave blank to run without authentication (local / tests).
+security:
+  api-key: ${API_KEY:}
+
+# Redis-backed fixed-window rate limit for /api/**, shared across instances. Fails open.
+ratelimit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  requests-per-window: ${RATE_LIMIT_REQUESTS:120}
+  window-ms: ${RATE_LIMIT_WINDOW_MS:10000}
+
+# Transactional outbox relay: drains PENDING rows to Kafka on a fixed delay.
+outbox:
+  poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+  batch-size: ${OUTBOX_BATCH_SIZE:100}
