@@ -11,6 +11,64 @@ order reservations, and participates in the order saga over Kafka.
 - Consume `order.created` → reserve stock → publish `inventory.reserved` or `inventory.reservation_failed`.
 - Consume `inventory.reservation_cancel` → release stock (saga compensation).
 
+## System Architecture
+
+```text
+                         +-----------------------+
+                         | API Gateway / Client  |
+                         +-----------+-----------+
+                                     |
+                           X-API-Key | HTTP
+                                     v
+                         +-----------+-----------+
+                         | InventoryController   |
+                         | validation + paging   |
+                         +-----------+-----------+
+                                     |
+                 +-------------------+-------------------+
+                 |                                       |
+        +--------v---------+                    +--------v----------+
+        | StockService     |                    | ReservationService|
+        | stock/warehouse  |                    | reserve/release   |
+        +--------+---------+                    +--------+----------+
+                 |                                       |
+        +--------v---------+                    +--------v----------+
+        | PostgreSQL       |<------------------>| Redis             |
+        | Flyway migrations|                    | distributed locks |
+        | repositories     |                    | rate limiting     |
+        +--------+---------+                    +-------------------+
+                 ^
+                 |
+        +--------+----------------+
+        | OutboxRelay             |
+        | scheduled Kafka drain   |
+        +--------+----------------+
+                 |
+        +--------v----------------+       +-------------------------+
+        | Kafka                   |------>| InventoryEventConsumer  |
+        | order.created           |       | + OrderReservationHandler|
+        | reservation_cancel      |       +------------+------------+
+        +-------------------------+                    |
+                 ^                                     v
+                 |                            +--------+----------+
+                 |                            | OutboxService     |
+                 |                            | transactional DB  |
+                 |                            +--------+----------+
+                 |                                     |
+                 +-------------------------------------+
+        +-------------------------+       +-------------------------+
+        | inventory.reserved      |       | inventory.reservation_  |
+        | reservation_failed      |       | failed / DLT            |
+        +-------------------------+       +-------------------------+
+
++----------------+       +----------------+       +----------------+
+| Actuator       |------>| Prometheus     |------>| Grafana        |
+| health/metrics |       | scraping       |       | dashboards     |
++----------------+       +----------------+       +----------------+
+
+Shared event contracts and topic names come from java-common-lib.
+```
+
 ## Tech
 
 Spring Boot 3.3 · Java 17 · PostgreSQL + Flyway · Redis · Spring Kafka · springdoc OpenAPI
